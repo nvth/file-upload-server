@@ -23,4 +23,3 @@ The server runs at `http://127.0.0.1:8000` by default.
 
 - `HOST`: bind address, default `0.0.0.0`
 - `PORT`: server port, default `8000`
-- `MAX_CONTENT_LENGTH_MB`: maximum upload size in MB, default `100`

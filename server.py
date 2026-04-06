@@ -20,9 +20,6 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = int(
-    os.getenv("MAX_CONTENT_LENGTH_MB", "100")
-) * 1024 * 1024
 
 
 HTML_PAGE = """
@@ -328,8 +325,8 @@ HTML_PAGE = """
             <span>files stored in the uploads directory</span>
           </div>
           <div class="stat">
-            <strong>{{ max_size_mb }} MB</strong>
-            <span>current maximum upload size</span>
+            <strong>No limit</strong>
+            <span>upload size is not restricted by the app</span>
           </div>
           <div class="stat">
             <strong>POST /upload</strong>
@@ -483,13 +480,11 @@ def list_uploads(limit: int = 10):
 @app.get("/")
 def index():
     uploads, upload_count = list_uploads()
-    max_size_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
     return render_template_string(
         HTML_PAGE,
         message=request.args.get("message"),
         uploads=uploads,
         upload_count=upload_count,
-        max_size_mb=max_size_mb,
     )
 
 
@@ -512,12 +507,6 @@ def upload_file():
 @app.get("/files/<path:filename>")
 def download_file(filename: str):
     return send_from_directory(UPLOAD_DIR, filename, as_attachment=True)
-
-
-@app.errorhandler(413)
-def file_too_large(_error):
-    max_size_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
-    return redirect(url_for("index", message=f"File is too large. Max size is {max_size_mb} MB."))
 
 
 if __name__ == "__main__":
