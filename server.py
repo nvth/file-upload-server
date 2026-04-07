@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 
 
 BASE_DIR = Path(__file__).resolve().parent
+RUN_DIR = Path.cwd().resolve()
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -68,7 +69,8 @@ HTML_PAGE = """
     }
     .hero-card,
     .stats-card,
-    .uploads-card {
+    .uploads-card,
+    .directory-card {
       background: var(--panel);
       backdrop-filter: blur(12px);
       border: 1px solid var(--line);
@@ -213,7 +215,8 @@ HTML_PAGE = """
     .stat span {
       color: var(--muted);
     }
-    .uploads-card {
+    .uploads-card,
+    .directory-card {
       margin-top: 24px;
       padding: 24px;
     }
@@ -227,6 +230,10 @@ HTML_PAGE = """
     .uploads-list {
       display: grid;
       gap: 12px;
+    }
+    .section-intro {
+      margin: 0 0 18px;
+      color: var(--muted);
     }
     .upload-item {
       display: flex;
@@ -265,7 +272,8 @@ HTML_PAGE = """
       }
       .hero-card,
       .stats-card,
-      .uploads-card {
+      .uploads-card,
+      .directory-card {
         border-radius: 22px;
       }
     }
@@ -275,7 +283,8 @@ HTML_PAGE = """
       }
       .hero-card,
       .stats-card,
-      .uploads-card {
+      .uploads-card,
+      .directory-card {
         padding: 18px;
       }
       .actions,
@@ -295,7 +304,7 @@ HTML_PAGE = """
         <p class="lead">
           A compact upload dashboard built on Flask. Files are stored in
           <code>uploads/</code>, duplicate names are handled automatically, and
-          recent uploads stay visible on the page.
+          the current working directory is listed on the page.
         </p>
         {% if message %}
           <div class="message">{{ message }}</div>
@@ -321,8 +330,8 @@ HTML_PAGE = """
         <h3>Overview</h3>
         <div class="stat-grid">
           <div class="stat">
-            <strong>{{ upload_count }}</strong>
-            <span>files stored in the uploads directory</span>
+            <strong>{{ run_file_count }}</strong>
+            <span>files found in the current working directory</span>
           </div>
           <div class="stat">
             <strong>No limit</strong>
@@ -334,6 +343,31 @@ HTML_PAGE = """
           </div>
         </div>
       </aside>
+    </section>
+
+    <section class="directory-card">
+      <div class="uploads-header">
+        <h3>Files in Current Working Directory</h3>
+        <span>{{ run_files|length }} shown</span>
+      </div>
+      <p class="section-intro">
+        Server process directory: <code>{{ run_dir }}</code>
+      </p>
+      {% if run_files %}
+        <div class="uploads-list">
+          {% for item in run_files %}
+            <div class="upload-item">
+              <div>
+                <strong>{{ item.name }}</strong>
+                <span>{{ item.size_label }} - {{ item.modified_label }}</span>
+              </div>
+              <a class="button button-secondary" href="{{ url_for('download_run_file', filename=item.name) }}">Download</a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty">No files were found in the current working directory.</div>
+      {% endif %}
     </section>
 
     <section class="uploads-card">
@@ -453,9 +487,12 @@ def format_size(num_bytes: int) -> str:
     return f"{int(num_bytes)} B"
 
 
-def list_uploads(limit: int = 10):
+def list_files_in_directory(directory: Path, limit: int = 10):
     files = []
-    for path in UPLOAD_DIR.iterdir():
+    if not directory.exists():
+        return [], 0
+
+    for path in directory.iterdir():
         if not path.is_file():
             continue
         stat = path.stat()
@@ -479,10 +516,14 @@ def list_uploads(limit: int = 10):
 
 @app.get("/")
 def index():
-    uploads, upload_count = list_uploads()
+    run_files, run_file_count = list_files_in_directory(RUN_DIR, limit=50)
+    uploads, upload_count = list_files_in_directory(UPLOAD_DIR)
     return render_template_string(
         HTML_PAGE,
         message=request.args.get("message"),
+        run_dir=str(RUN_DIR),
+        run_files=run_files,
+        run_file_count=run_file_count,
         uploads=uploads,
         upload_count=upload_count,
     )
@@ -507,6 +548,11 @@ def upload_file():
 @app.get("/files/<path:filename>")
 def download_file(filename: str):
     return send_from_directory(UPLOAD_DIR, filename, as_attachment=True)
+
+
+@app.get("/cwd-files/<path:filename>")
+def download_run_file(filename: str):
+    return send_from_directory(RUN_DIR, filename, as_attachment=True)
 
 
 if __name__ == "__main__":
